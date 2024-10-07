@@ -1,16 +1,22 @@
 // Déclaration des interfaces
 //#region Typage
+interface boolTubeExistant {
+    isCroise: boolean; // si il croise d'autre tube existant
+    isOnBuilding: boolean  // si il passe sur un building existant
+}
+interface boolTeleporterExistant {
+    isLandingZone: boolean; // si c'est un teleporter
+    // isComplet: boolean; // si il a encore de la place pour acceuillir des astronautes
+    // isBonType: boolean // si l'astronautes a teleporter a le type autorisé
+    isallReadyTP: boolean; // si le batiment a affecté est déjà une entré ou sortie de teleporter existant
+}
 interface Building {
     buildingId: number;
     coordX: number;
     coordY: number;
-}
-
-interface LandingZone extends Building {
     numAstronauts: number;
     astronautTypes: number[];  // Liste des types d'astronautes à cet endroit
 }
-
 interface LunarModule extends Building {
     moduleType: number;  // Type de module (laboratoire, observatoire, etc.)
 }
@@ -68,9 +74,6 @@ interface Astronaut {
     type: number;  // Type d'astronaute
     destination: number | null;  // Identifiant du bâtiment où il doit se rendre
 }
-//#endregion
-
-
 class UnionFind {
     parent: number[];
     rank: number[];
@@ -103,6 +106,8 @@ class UnionFind {
         }
     }
 }
+//#endregion
+
 
 /**
  * Algorithme de Kruskal pour construire l'arbre couvrant minimum (MST).
@@ -143,18 +148,19 @@ function kruskalMST(): { routes: Transport[], cost: number } {
     return { routes: mst, cost: totalCost };
 }
 
+
 // Vérification si le bâtiment de destination est accessible
 function verifieTrajetPourAstronaute(astronaut: Astronaut, path: number[]): boolean {
     // Vérifie que le chemin passe par le bâtiment de destination de l'astronaute
     return astronaut.destination != null ? path.includes(astronaut.destination) : false;
 }
 function assignerTrajetsAstronautes(astronaut: Astronaut) {
-        let distances = dijkstra(astronaut.astronautId);
-        let path = distances[astronaut.destination != null ? astronaut.destination : 0].path;
+        // let distances = dijkstra(astronaut.astronautId);
+        // let path = distances[astronaut.destination != null ? astronaut.destination : 0].path;
 
-        if (verifieTrajetPourAstronaute(astronaut, path)) {
+        // if (verifieTrajetPourAstronaute(astronaut, path)) {
            
-        }
+        // }
     
 }
 
@@ -170,16 +176,17 @@ function assignerTrajetsAstronautes(astronaut: Astronaut) {
 function calculDistanceTub(b1: Building, b2: Building): number {
     return Math.sqrt(Math.pow(b2.coordX - b1.coordX, 2) + Math.pow(b2.coordY - b1.coordY, 2)) * 10;
 }
+
 function gestionTraficEtUpgrade() {
     let transportRouteMagnetic = getListTube();
     transportRouteMagnetic.forEach(route => {
         let trafficCount = calculerTraficSurRoute(route);  // Calcule le nombre d'astronautes sur cette route
-        console.error("trafficCount", trafficCount)
-        console.error("route.capacity * 10", route.capacity * 10)
+        // console.error("trafficCount", trafficCount)
+        // console.error("route.capacity * 10", route.capacity * 10)
 
         // * 10 car un pods transport 10 astronautes
         if (trafficCount > route.capacity * 10) {
-            console.error("update commencé")
+            // console.error("update commencé")
             upgradeTube(route);
         }
     });
@@ -188,9 +195,9 @@ function gestionTraficEtUpgrade() {
 function calculerTraficSurRoute(route: MagneticTube): number {
     let trafficCount = 0;
     let numberOfPod = 0;
-    console.error("route", route)
+    // console.error("route", route)
     podsList.forEach((podRoute: MagneticTube) => {
-        console.error("podRoute", podRoute)
+        // console.error("podRoute", podRoute)
         if
         (
             (podRoute.buildingId1 == route.buildingId1 && podRoute.buildingId2 == podRoute.buildingId2) || 
@@ -216,10 +223,6 @@ function getNumberOfPods(route: MagneticTube): number {
     return numberOfPod;
 }
 
-
-
-
-
 /**
  * Retourne le signe d'un nombre.
  * - Retourne -1 si le nombre est négatif.
@@ -234,7 +237,6 @@ function sign(x: number): number {
     if (x === null) return 0;
     return 1;
 }
-
 
 function upgradeTube(route: MagneticTube) {
     let newCapacity: number = 0;
@@ -259,8 +261,8 @@ function upgradeTube(route: MagneticTube) {
         }
     }
 
-    console.error('newCapacity', newCapacity);
-    console.error('tubeToUpgrade', tubeToUpgrade);
+    // console.error('newCapacity', newCapacity);
+    // console.error('tubeToUpgrade', tubeToUpgrade);
     // Vérifier si on a trouvé un tube à upgrader et si la nouvelle capacité est valide
     if (tubeToUpgrade && newCapacity !== 0) {
         // Calculer le coût de l'upgrade
@@ -275,8 +277,8 @@ function upgradeTube(route: MagneticTube) {
             }
         })
         const newCost = calculDistanceTub(building1!, building2!) * newCapacity;
-        console.error('newCost', newCost);
-        console.error('resources.totalResources',resources.totalResources)
+        // console.error('newCost', newCost);
+        // console.error('resources.totalResources',resources.totalResources)
 
         // Vérifier si on a suffisamment de ressources pour effectuer l'upgrade
         if (hasSufficientResources(newCost)) {
@@ -303,8 +305,6 @@ function verifIdBuiling(id1: number,id2: number, id3: number, id4: number): bool
     return (id1 == id3 && id2 == id4) || (id2 == id3 && id1 == id4)
 }
 
-
-
 /**
  * Calcule l'orientation de trois bâtiments.
  * L'orientation est calculée à l'aide du produit vectoriel des coordonnées des trois points.
@@ -318,7 +318,6 @@ function orientationFun(p1: Building, p2: Building, p3: Building): number {
     const prod = (p3.coordY - p1.coordY) * (p2.coordX - p1.coordX) - (p2.coordY - p1.coordY) * (p3.coordX - p1.coordX);
     return sign(prod);
 }
-
 
 /**
  * Vérifie si deux segments formés par quatre bâtiments se croisent.
@@ -404,7 +403,6 @@ function addTransportRoute(isDebut: boolean, capacity?: number, buildingId1?: nu
     }
 }
 
-
 /**
  * Ajoute des capsules existantes ou manuellement à la liste des pods.
  * Si le jeu débute, les capsules sont lues depuis l'entrée standard, sinon elles sont ajoutées manuellement.
@@ -464,7 +462,7 @@ function addBuildings(isDebut: boolean, typeOrZone?: number, buildingId?: number
                     const numAstronauts = rest[0];
                     const astronautTypes = rest.slice(1, numAstronauts + 1);
     
-                    const building: LandingZone = {
+                    const building: Building = {
                         buildingId: buildingId,
                         coordX: coordX,
                         coordY: coordY,
@@ -491,7 +489,9 @@ function addBuildings(isDebut: boolean, typeOrZone?: number, buildingId?: number
                         moduleType: typeOrZone,
                         buildingId: buildingId,
                         coordX: coordX,
-                        coordY: coordY
+                        coordY: coordY,
+                        numAstronauts: 0,
+                        astronautTypes: []
                     };
     
                     newBuildings.push(building);
@@ -504,17 +504,6 @@ function addBuildings(isDebut: boolean, typeOrZone?: number, buildingId?: number
     }
 }
 
-
-interface boolTubeExistant {
-    isCroise: boolean; // si il croise d'autre tube existant
-    isOnBuilding: boolean  // si il passe sur un building existant
-}
-interface boolTeleporterExistant {
-    isLandingZone: boolean; // si c'est un teleporter
-    // isComplet: boolean; // si il a encore de la place pour acceuillir des astronautes
-    // isBonType: boolean // si l'astronautes a teleporter a le type autorisé
-    isallReadyTP: boolean; // si le batiment a affecté est déjà une entré ou sortie de teleporter existant
-}
 /**
  * Vérifie si un tube croise un autre tube ou s'il s'agit d'un téléporteur.
  * 
@@ -549,15 +538,12 @@ function verificationTubeExistant(building1: Building, building2: Building): boo
             ) {
                 // Vérification si les segments se croisent
                 if (segmentsIntersect(building1, building2, tubeBuilding1, tubeBuilding2)) {
-                    console.error("trueeeeeeeeeee",tubeBuilding1,tubeBuilding2, building1, building2)
                     interfaceTubeExist.isCroise = true; // Les segments se croisent
                 }
             }
         }
     return interfaceTubeExist;
 }
-
-
 
 function addTubeCost(distanceTubeCalc: number, buildingId1: number, buildingId2: number) {
     tubeCostList.push({
@@ -575,7 +561,6 @@ function pointOnSegment(A: Building, B: Building, C: Building): boolean {
     const epsilon = 0.0000001;
     return Math.abs(distance(B, A) + distance(A, C) - distance(B, C)) < epsilon;
 }
-
 
 function gestionTubeTeleporter() {
     let arretes = kruskalMST()
@@ -604,7 +589,7 @@ function gestionTubeTeleporter() {
             } else {
                 let interfaceTubeExistant: boolTubeExistant = { isCroise: false, isOnBuilding: false }
                 interfaceTubeExistant = verificationTubeExistant(building1, building2)
-                console.error("interfaceTubeExistant",interfaceTubeExistant)
+                // console.error("interfaceTubeExistant",interfaceTubeExistant)
                 // Sinon, ajouter des tubes magnétiques
                 if (
                     hasSufficientResources(tubeCost) &&
@@ -656,94 +641,8 @@ function teleporterExists(buildingId1: number, buildingId2: number): boolean {
     );
 }
 
-function dijkstra(start: number): { [key: number]: { distance: number, path: number[] } } {
-    let distances: { [key: number]: number } = {};
-    let previous: { [key: number]: number | null } = {};
-    let visited: { [key: number]: boolean } = {};
-    let priorityQueue: { buildingId: number, distance: number }[] = [];
-
-    // Initialiser les distances et le tableau des prédécesseurs
-    for (let buildingId in graph) {
-        distances[buildingId] = Infinity;
-        previous[buildingId] = null;
-        visited[buildingId] = false;
-    }
-    distances[start] = 0;
-    priorityQueue.push({ buildingId: start, distance: 0 });
-
-    // Boucle principale
-    while (priorityQueue.length > 0) {
-        priorityQueue.sort((a, b) => a.distance - b.distance); // Trier la file d'attente par distance
-        const { buildingId: currentBuilding, distance: currentDistance } = priorityQueue.shift()!;
-
-        if (visited[currentBuilding]) continue;
-        visited[currentBuilding] = true;
-
-        // Vérification si currentBuilding a des routes associées
-        if (!graph![currentBuilding]) continue;
-
-        // Parcourir les voisins
-        for (let neighbor of graph![currentBuilding]) {
-            let newDistance = currentDistance + neighbor.distance;
-
-            if (newDistance < distances[neighbor.buildingId]) {
-                distances[neighbor.buildingId] = newDistance;
-                previous[neighbor.buildingId] = currentBuilding;
-                priorityQueue.push({ buildingId: neighbor.buildingId, distance: newDistance });
-            }
-        }
-    }
-
-    // Reconstruire les chemins
-    let results: { [key: number]: { distance: number, path: number[] } } = {};
-    for (let buildingId in distances) {
-        results[buildingId] = {
-            distance: distances[buildingId],
-            path: reconstructPath(previous, +buildingId)
-        };
-    }
-
-    return results;
-}
-
-// Fonction pour reconstruire le chemin en remontant à partir des prédécesseurs
-function reconstructPath(previous: { [key: number]: number | null }, target: number): number[] {
-    
-    let path: number[] = [];
-    let current: number | null = target;
-    while (current !== null) {
-        path.unshift(current);  // Ajouter au début du chemin
-        if (current === previous[current]) {
-            break;
-        }
-        current = previous[current];
-    }
-
-    return path;
-}
-
-
-
 function hasSufficientResources(cost: number | undefined): boolean {
     return resources.totalResources !== null && cost !== undefined && resources.totalResources >= cost;
-}
-
-
-
-function buildGraph(): Graph {
-    let graph: Graph = {};
-
-    transportRoutes.forEach(route => {
-        const distance = calculDistanceTub(newBuildingsMap.get(route.buildingId1)!, newBuildingsMap.get(route.buildingId2)!);
-
-        if (!graph[route.buildingId1]) graph[route.buildingId1] = [];
-        if (!graph[route.buildingId2]) graph[route.buildingId2] = [];
-
-        graph[route.buildingId1].push({ buildingId: route.buildingId2, distance });
-        graph[route.buildingId2].push({ buildingId: route.buildingId1, distance });
-    });
-
-    return graph;
 }
 
 function getListTube(): MagneticTube[] {
@@ -752,34 +651,6 @@ function getListTube(): MagneticTube[] {
 function getListTeleporter(): Teleporter[] {
     return transportRoutes.filter((value: any) => value?.capacity === undefined) as Teleporter[]
 }
-
-// function gestionPods() {
-//     const TubeTransportRoutes: MagneticTube[] = getListTube();
-//     let idPod = 0;
-//     let isExist = false
-//     for(let route of TubeTransportRoutes) {
-//         for(let pod of podsList){
-//             if(pod === route){
-//                 isExist = true; 
-//                 break;
-//             }
-//         }
-//         if
-//         (
-//             resources.totalResources &&
-//             resources.totalResources > POD_RESSOURCE &&
-//             !isExist
-//         )
-//         {
-//             podsList.push(route)
-//             actions.push({
-//                 type: typeAction.POD,
-//                 details: `${idPod} ${route.buildingId1} ${route.buildingId2}`
-//             })
-//             idPod++;
-//         }
-//     }
-// }
 
 // 1. Capacité des routes
 // 2. Trafic sur la route
@@ -790,6 +661,7 @@ function getListTeleporter(): Teleporter[] {
 // 7. Planification des hubs de transport
 // 8. Ajout de pods circulaires
 // 9. Planification par quartier ou zone
+// to do
 function gestionPodsAndCapacity() {
     const TubeTransportRoutes: MagneticTube[] = getListTube();
     let idPod = pods.length > 0 ? pods[pods.length - 1].podId : 0;
@@ -806,38 +678,91 @@ function gestionPodsAndCapacity() {
                 break;  // Arrêter la boucle dès qu'un pod est trouvé
             }
         }
+        
+        const building1: Building = newBuildingsMap.get(route.buildingId1)!
+        const building2: Building = newBuildingsMap.get(route.buildingId2)!
+        console.error("building1", building1)
+        // 
+        if(building1.astronautTypes.length !== 0){
+            // console.error('building1.astronautTypes.length', building1.astronautTypes.length)
+            building1.astronautTypes.forEach((type: number) => {
+                // console.error("type", type)
+                // console.error("type", (building2 as LunarModule).moduleType)
+                if((building2 as LunarModule)?.moduleType && (building2 as LunarModule).moduleType == type){
+                    if 
+                    (
+                        hasSufficientResources(POD_RESSOURCE) &&
+                        !podsList.some(a => {
+                            a.buildingId1 == building1.buildingId && a.buildingId2 == building1.buildingId ||
+                            a.buildingId2 == building1.buildingId && a.buildingId1 == building1.buildingId
+                        })
+                    ) {
+                        idPod++; 
+                        podsList.push(route);
+                        actions.push({
+                            type: typeAction.POD,
+                            details: `${idPod} ${building1.buildingId} ${building2.buildingId}`
+                        });
+                        resources.totalResources! -= POD_RESSOURCE;
+                    }
+                }
+            })
+        }
+        else if(building2.astronautTypes.length !== 0){
+            building2.astronautTypes.forEach((type: number) => {
+                // console.error("type", type)
+                // console.error("type", (building2 as LunarModule).moduleType)
+                if((building1 as LunarModule)?.moduleType && (building1 as LunarModule).moduleType == type){
+                    if 
+                    (
+                        hasSufficientResources(POD_RESSOURCE) &&
+                        !podsList.some(a => {
+                            a.buildingId1 == building2.buildingId && a.buildingId2 == a.buildingId2 ||
+                            a.buildingId2 == building2.buildingId && a.buildingId1 == a.buildingId2
+                        })
+                    ) {
+                        idPod++; 
+                        podsList.push(route);
+                        actions.push({
+                            type: typeAction.POD,
+                            details: `${idPod} ${building1.buildingId} ${building2.buildingId}`
+                        });
+                        resources.totalResources! -= POD_RESSOURCE;
+                    }
+                }
+            })
+        }
+
+        // S'il y a suffisamment de trafic et des ressources disponibles
+        // if (hasSufficientResources(POD_RESSOURCE)) {
+        //     idPod++;
+        //     let stops = pathCourt.join(' ');  // Créer les arrêts à partir du chemin court
+        //     podsList.push(route);
+        //     actions.push({
+        //         type: typeAction.POD,
+        //         details: `${idPod} ${stops}`
+        //     });
+        //     resources.totalResources! -= POD_RESSOURCE;
+        // }
+
 
         // Si un pod n'existe pas encore sur cette route, et qu'il y a du trafic, on ajoute un pod
-        console.error("getNumberOfPods", getNumberOfPods(route))
-        if (!isExist || getNumberOfPods(route) < route.capacity) {
-            let distances = dijkstra(route.buildingId1);
+        // console.error("getNumberOfPods", getNumberOfPods(route))
+        // if (!isExist || getNumberOfPods(route) < route.capacity) {
+        //     // let distances = dijkstra(route.buildingId1);
 
-            const { distance, path } = distances[route.buildingId2];
-            let pathCourt: number[] = path;
+        //     // const { distance, path } = distances[route.buildingId2];
+        //     // let pathCourt: number[] = path;
 
-            if (pathCourt.length > 1) { 
+        //     if (pathCourt.length > 1) { 
 
 
-                // S'il y a suffisamment de trafic et des ressources disponibles
-                if (hasSufficientResources(POD_RESSOURCE)) {
-                    idPod++;
-                    let stops = pathCourt.join(' ');  // Créer les arrêts à partir du chemin court
-                    podsList.push(route);
-                    actions.push({
-                        type: typeAction.POD,
-                        details: `${idPod} ${stops}`
-                    });
-                    resources.totalResources! -= POD_RESSOURCE;
-                }
-            }
-        }
+        //         
+        //     }
+        // }
         
     }
 }
-
-
-
-
 
 function sortirActions() {
     // Sortie des actions (format attendu par le jeu)
@@ -851,26 +776,6 @@ function sortirActions() {
 
     actions = []; // Réinitialiser les actions pour le prochain tour
 }
-function buildCompleteGraph(): Graph {
-    let graph: Graph = {};
-
-    // Ajouter toutes les paires de bâtiments avec leur distance calculée
-    newBuildings.forEach((building1) => {
-        newBuildings.forEach((building2) => {
-            if (building1.buildingId !== building2.buildingId) {
-                const distance = calculDistanceTub(building1, building2);
-
-                if (!graph[building1.buildingId]) graph[building1.buildingId] = [];
-                if (!graph[building2.buildingId]) graph[building2.buildingId] = [];
-
-                graph[building1.buildingId].push({ buildingId: building2.buildingId, distance });
-                graph[building2.buildingId].push({ buildingId: building1.buildingId, distance });
-            }
-        });
-    });
-
-    return graph;
-}
 
 
 //#region constante
@@ -881,7 +786,6 @@ const LIMITE_MONTH: number = 20;
 //#endregion
 
 //#region variables globales
-let graph: Graph | undefined = undefined;
 let actions: Action[] = [];
 
 let newBuildings: Building[] = [];
@@ -912,7 +816,6 @@ while (numberOfMonth !== 20) {
     addTransportRoute(true);
     addPods(true);
     addBuildings(true);
-    graph = buildCompleteGraph();
     
 
     // Remplir la map avec les bâtiments existants
