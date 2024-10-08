@@ -621,153 +621,184 @@ interface SimulatedAction {
     type: typeAction;
     details: string;
     cost: number;
-    zoneType: number;
     priority: number;  // Une mesure de la rentabilité ou de la priorité (ex : nombre d'astronautes transportés)
 }
 
-function gestionArrivee(): void {
+function gestionTubeTeleporter() {
     let arretes = kruskalMST();
-    let simulatedActions: SimulatedAction[] = [];
-    const actionSet = new Set<string>();  // Pour éviter les doublons
+    let simulatedActions: SimulatedAction[] = [];  // Liste pour stocker toutes les actions simulées
 
     LandingZoneMap.forEach((building: Building) => {
-        const trajetCache: Map<number, Transport[]> = new Map(); // Cache pour stocker les trajets calculés par type
-
-        building.astronautTypes.forEach((type: number) => {
-            if (!trajetCache.has(type)) {
-                const path = trouverModuleLunaireProcheByTypesAndRoutes(building.buildingId, type, arretes.routes);
-                if (path) {
-                    trajetCache.set(type, path);  // Stocker le chemin pour éviter de recalculer
-                }
-            }
-
-            const pathForType = trajetCache.get(type);
-            if (pathForType) {
+        if(building.numAstronauts > 0){
+            const type = building.astronautTypes[0];
+            const path = trouverModuleLunaireProcheByTypesAndRoutes(building.buildingId, type, arretes.routes);
+            if (path !== undefined) {
                 let routeForType: Transport[] = [];
 
-                // Récupérer les tubes qui ne sont pas encore construits pour ce type
+                // Parcours des tubes qui ne sont pas encore construits
                 arretes.routes.forEach((tube: Transport) => {
-                    pathForType.forEach((transport: Transport) => {
+                    path.forEach((transport: Transport) => {
                         if (
                             (tube.buildingId1 === transport.buildingId1 && tube.buildingId2 === transport.buildingId2) ||
                             (tube.buildingId1 === transport.buildingId2 && tube.buildingId2 === transport.buildingId1)
                         ) {
-                            if (!transportRoutes.some(route => route === tube)) {
+                            let isRouteOnTransport = transportRoutes.some(route => route == tube);
+                            if(building.buildingId == 8) {
+                                console.error('isRouteOnTransport',isRouteOnTransport)  
+                            }
+                            if (!isRouteOnTransport) {
                                 routeForType.push(tube);
                             }
                         }
                     });
                 });
-
-
                 let idBuildingEnd: number | null = null;
-                routeForType.forEach(route => {
-                    const b1 = newBuildingsMap.get(route.buildingId1)!;
-                    const b2 = newBuildingsMap.get(route.buildingId2)!;
-                    if ((b1 as LunarModule)?.moduleType === type) {
-                        idBuildingEnd = b1.buildingId;
-                    } else if ((b2 as LunarModule)?.moduleType === type) {
-                        idBuildingEnd = b2.buildingId;
+                routeForType.forEach((routeType: Transport) => {
+                    const b1: Building = newBuildingsMap.get(routeType.buildingId1)!
+                    const b2: Building = newBuildingsMap.get(routeType.buildingId2)!
+                    if(building.buildingId == 8) {
+                        console.error('b1',b1)  
+                        console.error('b2',b2)
+                        console.error('type',type)
                     }
-                });
 
-                
-                let buildingEnd: Building = newBuildingsMap.get(idBuildingEnd!)!;
-                if(building.buildingId == 1) {
-                    // console.error("routeForType",routeForType)
-                    // console.error("idBuildingEnd",idBuildingEnd)
+                    if((b1 as LunarModule)?.moduleType && (b1 as LunarModule).moduleType == type){
+                        idBuildingEnd = b1.buildingId
+                    }
+                    else if((b2 as LunarModule)?.moduleType && (b2 as LunarModule).moduleType == type){
+                        idBuildingEnd = b2.buildingId
+                    }
+                })
+                console.error('routeForType',routeForType)  
+                console.error('idBuildingEnd',idBuildingEnd)  
+
+                // const buildingEnd = newBuildingsMap.get(routeForType[routeForType.length - 1].buildingId1) === building
+                //         ? newBuildingsMap.get(routeForType[routeForType.length - 1].buildingId2)
+                //         : newBuildingsMap.get(routeForType[routeForType.length - 1].buildingId1);
+                let buildingEnd: Building | null = null
+                if(idBuildingEnd !== null) {
+                    buildingEnd = newBuildingsMap.get(idBuildingEnd)! === building
+                    ? newBuildingsMap.get(idBuildingEnd)!
+                    : newBuildingsMap.get(idBuildingEnd)!;
                 }
+
                 const totalCostForTubes = simulateCostTubeTotal(building, routeForType);
-                if (buildingEnd !== null) {
-                    const teleporterExists = transportRoutes.some(a =>
-                        (a.buildingId1 === building.buildingId && a.buildingId2 === buildingEnd!.buildingId) ||
-                        (a.buildingId1 === buildingEnd!.buildingId && a.buildingId2 === building.buildingId)
-                    );
-                   
+                const teleporterExists = transportRoutes.some(a => (a.buildingId1 == building.buildingId || a.buildingId1 == buildingEnd!.buildingId) ||
+                                                                    (a.buildingId2 == building.buildingId || a.buildingId1 == buildingEnd!.buildingId));
+                if(building.buildingId == 8) {
+                    // console.error('routeForType',routeForType)  
+                    // console.error('buildingEnd',buildingEnd)
+                }
 
-                    if (totalCostForTubes > TELEPORT_RESSOURCE && !teleporterExists) {
-                        const actionsTemp: SimulatedAction = {
-                            type: typeAction.TELEPORT,
-                            details: `${building.buildingId} ${buildingEnd.buildingId}`,
-                            cost: TELEPORT_RESSOURCE,
-                            priority: building.numAstronauts,
-                            zoneType: type
-                        };
-                        if (!actionSet.has(`${actionsTemp.type}-${actionsTemp.details}-${actionsTemp.cost}`)) {
-                            simulatedActions.push(actionsTemp);
-                            actionSet.add(`${actionsTemp.type}-${actionsTemp.details}-${actionsTemp.cost}`);
-                        }
-                    } else {
-                        routeForType.forEach(route => {
-                            const building1 = newBuildingsMap.get(route.buildingId1)!;
-                            const building2 = newBuildingsMap.get(route.buildingId2)!;
-                            const tubeCost = calculDistanceTub(building1, building2);
-                            const interfaceTubeExistant = verificationTubeExistant(building1, building2);
-
-                            if (!tubeExists(building1.buildingId, building2.buildingId) &&
-                                !interfaceTubeExistant.isOnBuilding && !interfaceTubeExistant.isCroise) {
-                                const actionsTemp: SimulatedAction = {
-                                    type: typeAction.TUBE,
-                                    details: `${building1.buildingId} ${building2.buildingId}`,
-                                    cost: tubeCost,
-                                    priority: 10 * (route as any).capacity,  // Ajout de capacité potentielle si nécessaire
-                                    zoneType: type
-                                };
-                                if (!actionSet.has(`${actionsTemp.type}-${actionsTemp.details}-${actionsTemp.cost}`)) {
-                                    simulatedActions.push(actionsTemp);
-                                    actionSet.add(`${actionsTemp.type}-${actionsTemp.details}-${actionsTemp.cost}`);
-                                }
-                            }
-                        });
+                // Si un téléporteur est plus avantageux
+                if (totalCostForTubes > TELEPORT_RESSOURCE && !teleporterExists) {
+                    
+                    const actionsTemp = {
+                        type: typeAction.TELEPORT,
+                        details: `${building.buildingId} ${buildingEnd!.buildingId}`,
+                        cost: TELEPORT_RESSOURCE,
+                        priority: building.numAstronauts // Tu peux ajuster la priorité ici, par exemple selon le nombre d'astronautes transportés
                     }
+                    let actionsExist = false
+                    
+                    simulatedActions.forEach((actionsVar: SimulatedAction) => {
+                        // Comparer les détails de l'action (type, details, cost, etc.)
+                        if (
+                            actionsVar.type === actionsTemp.type &&
+                            actionsVar.details === actionsTemp.details &&
+                            actionsVar.cost === actionsTemp.cost
+                        ) {
+                            actionsExist = true;
+                        }
+                       
+                    });
+                    
+                    if(!actionsExist) {
+                        simulatedActions.push(actionsTemp)
+                    }
+                } else {
+                    // Si un téléporteur n'est pas avantageux, simuler les tubes
+                    routeForType.forEach((route: Transport) => {
+                        const building1 = newBuildingsMap.get(route.buildingId1)!;
+                        const building2 = newBuildingsMap.get(route.buildingId2)!;
+
+                        let tubeCost = calculDistanceTub(building1, building2);
+                        let interfaceTubeExistant: boolTubeExistant = verificationTubeExistant(building1, building2);
+
+                        if (
+                            !tubeExists(building1.buildingId, building2.buildingId) &&
+                            !tubeCostList.some(a =>
+                                (a.buildingid1 === building1.buildingId && a.buildingid2 === building2.buildingId) ||
+                                (a.buildingid1 === building2.buildingId && a.buildingid2 === building1.buildingId)
+                            ) &&
+                            !interfaceTubeExistant.isOnBuilding &&
+                            !interfaceTubeExistant.isCroise
+                        ) {
+                            const actionsTemp = {
+                                type: typeAction.TUBE,
+                                details: `${building1.buildingId} ${building2.buildingId}`,
+                                cost: tubeCost,
+                                priority: 10 * (route as MagneticTube).capacity // Par exemple, la priorité peut être plus faible qu'un téléporteur
+                            }
+                            let actionsExist = false
+                    
+                            simulatedActions.forEach((actionsVar: SimulatedAction) => {
+                                // Comparer les détails de l'action (type, details, cost, etc.)
+                                if (
+                                    actionsVar.type === actionsTemp.type &&
+                                    actionsVar.details === actionsTemp.details &&
+                                    actionsVar.cost === actionsTemp.cost
+                                ) {
+                                    actionsExist = true;
+                                }
+                            
+                            });
+                            
+                            if(!actionsExist) {
+                                simulatedActions.push(actionsTemp)
+                            }
+                        }
+                    });
                 }
             }
-        });
+        }
+           
     });
 
-    simulatedActions.sort((a, b) => b.priority - a.priority || a.cost - b.cost);
+    // Étape 2 : Trier les actions par priorité et coût, puis exécuter
 
+    simulatedActions.sort((a, b) => b.priority - a.priority || a.cost - b.cost);  // Prioriser selon la rentabilité
+
+    // Appliquer les actions les plus rentables tant qu'il reste des ressources
     simulatedActions.forEach(action => {
         if (resources.totalResources! >= action.cost) {
-            const [buildingId1, buildingId2] = action.details.split(' ').map(Number);
-            const building1 = newBuildingsMap.get(buildingId1)!;
-            const building2 = newBuildingsMap.get(buildingId2)!;
-            if (action.type === typeAction.TELEPORT) {
+            if(action.type == "TELEPORT") {
+                const [buildingId1, buildingId2] = action.details.split(' ').map(Number)
+                const building1 = newBuildingsMap.get(buildingId1)!
+                const building2 = newBuildingsMap.get(buildingId2)!
 
-                teleporterList.push(building1);
-                teleporterList.push(building2);
-                addTransportRoute(false, 0, buildingId1, buildingId2);
-                transfererAstronautes(building1, building2, action.zoneType);
-            } else if (action.type === typeAction.TUBE) {
-                addTubeCost(action.cost, buildingId1, buildingId2);
-                addTransportRoute(false, 1, buildingId1, buildingId2);
-                transfererAstronautes(building1, building2, action.zoneType);
+                teleporterList.push(building1)
+                teleporterList.push(building2)
+                addTransportRoute(false,0,buildingId1,buildingId2);
+
             }
-
+            if(action.type == "TUBE"){
+                const [buildingId1, buildingId2] = action.details.split(' ').map(Number)
+                addTubeCost(action.cost, buildingId1,buildingId2)
+                addTransportRoute(false,1,buildingId1,buildingId2);
+            }
             actions.push({
                 type: action.type,
                 details: action.details
             });
-
-            // Déduire le coût des ressources
             resources.totalResources! -= action.cost;
         }
     });
-}
 
-// Fonction de transfert des astronautes d'un bâtiment source vers un bâtiment destination
-function transfererAstronautes(sourceBuilding: Building, destBuilding: Building, type: number) {
-    const astronautesAEnvoyer = sourceBuilding.astronautTypes.filter(t => t === type);
+    console.error("actions",actions)
     
-    if (astronautesAEnvoyer.length > 0) {
-        // Supprimer les astronautes du bâtiment source
-        sourceBuilding.astronautTypes = sourceBuilding.astronautTypes.filter(t => t !== type);
-        sourceBuilding.numAstronauts -= astronautesAEnvoyer.length;
 
-        // Ajouter les astronautes au bâtiment de destination
-        destBuilding.astronautTypes.push(...astronautesAEnvoyer);
-        destBuilding.numAstronauts += astronautesAEnvoyer.length;
-    }
+    
 }
 
 
@@ -857,41 +888,39 @@ function construireCheminString(path: Transport[]): string {
 // 8. Ajout de pods circulaires
 // 9. Planification par quartier ou zone
 // to do
-function gestionResteAstronautesOnLunarModule() {
+function gestionPodsAndCapacity() {
     let idPod = pods.length > 0 ? pods[pods.length - 1].podId : 0;
 
     LandingZoneMap.forEach((landingzone: Building) => {
-        const typeCache: Map<number, Transport[]> = new Map(); // Cache pour éviter des calculs répétés des chemins par type
-
         landingzone.astronautTypes.forEach((type: number) => {
-            if (!typeCache.has(type)) {
-                const path = trouverModuleLunaireProcheByTypes(landingzone.buildingId, type);
-                if (path !== undefined) {
-                    typeCache.set(type, path);  // Stocke le chemin calculé pour éviter les répétitions
-                }
-            }
+            const path = trouverModuleLunaireProcheByTypes(landingzone.buildingId, type);
 
-            const path = typeCache.get(type);
-            if (path && path.length > 0) {
+            if (path !== undefined) {
                 let routeForType: MagneticTube[] = [];
 
-                // Filtre les tubes qui correspondent au chemin
+                // Parcours de tous les tubes pour vérifier s'ils font partie du chemin
                 getListTube().forEach((tube: MagneticTube) => {
-                    if (path.some((transport: Transport) =>
-                        (tube.buildingId1 === transport.buildingId1 && tube.buildingId2 === transport.buildingId2) ||
-                        (tube.buildingId1 === transport.buildingId2 && tube.buildingId2 === transport.buildingId1))) {
-                        routeForType.push(tube);
-                    }
+                    path.forEach((transport: Transport) => {
+                        if (
+                            (tube.buildingId1 === transport.buildingId1 && tube.buildingId2 === transport.buildingId2) ||
+                            (tube.buildingId1 === transport.buildingId2 && tube.buildingId2 === transport.buildingId1)
+                        ) {
+                            routeForType.push(tube);
+                        }
+                    });
                 });
 
-                // Si toutes les routes du chemin sont valides
+                // Ajout de vérifications supplémentaires pour éviter les ajouts multiples et vérifier la capacité
                 if (routeForType.length === path.length) {
                     const podTowardsLunarModule = embarquerAstronautesDansPod(
                         landingzone.buildingId,
                         newBuildingsMap.get(path[path.length - 1].buildingId2)?.buildingId!
                     );
 
-                    const stopsTemp: number[] = path.flatMap(a => [a.buildingId1, a.buildingId2]);
+                    const stopsTemp: number[] = [];
+                    path.forEach(a => {
+                        stopsTemp.push(a.buildingId1, a.buildingId2);
+                    });
 
                     let pod: Pod = {
                         podId: idPod + 1,
@@ -900,18 +929,24 @@ function gestionResteAstronautesOnLunarModule() {
                         astronauts: podTowardsLunarModule
                     };
 
-                    // Vérification des doublons de pod et de capacité des routes
                     let isExist = pods.some(p => JSON.stringify(p.stops) === JSON.stringify(pod.stops));
+                    
+                    // Détection de la route ayant dépassé la capacité
                     let noMoreCapacity = false;
-
+                    let routeToUpgrade: MagneticTube | null = null; // Initialisation de la route à améliorer
+                    
                     routeForType.forEach(route => {
                         if (route.pods.length >= route.capacity) {
                             noMoreCapacity = true;
-                            route = upgradeTube(route);  // Augmenter la capacité du tube si nécessaire
+                            routeToUpgrade = route; // Assigner la route à upgrader
+                            route = upgradeTube(route);
+                            // console.error('route.capacity',route.capacity)
                         }
                     });
-
-                    // Ajout du pod si les conditions sont remplies
+                    if(landingzone.buildingId == 3){
+                        // console.error('actions',actions)
+                    }
+                    
                     if (!isExist && hasSufficientResources(POD_RESSOURCE) && !noMoreCapacity) {
                         idPod++;
                         pods.push(pod);
@@ -931,64 +966,50 @@ function gestionResteAstronautesOnLunarModule() {
         });
     });
 
-    LunarModuleMap.forEach((module: LunarModule) => {
-        const typeCache: Map<number, Transport[]> = new Map(); // Cache pour éviter des calculs répétitifs
-        console.error("module",module)
-        module.astronautTypes.forEach((type: number) => {
-            if (type !== module.moduleType) {
-                // Vérifie si le chemin pour ce type a déjà été calculé
-                if (!typeCache.has(type)) {
-                    const path = trouverModuleLunaireProcheByTypes(module.buildingId, type);
-                    if (path) {
-                        typeCache.set(type, path); // Stocker dans le cache
-                    }
-                }
+    // LunarModuleMap.forEach((module: LunarModule) => {
+    //     module.astronautTypes.forEach((type: number) => {
+    //         if(type != module.moduleType) {
+    //             const path = trouverModuleLunaireProcheByTypes(module.buildingId, type);
+    //                 if (path) {
+    //                     const routeForType: MagneticTube | undefined  = getListTube().find(a => 
+    //                         (a.buildingId1 == module.buildingId && a.buildingId2 == path[path.length-1].buildingId2) ||
+    //                         (a.buildingId2 == module.buildingId && a.buildingId1 == path[path.length-1].buildingId2))!
+    //                     if(routeForType) {
+    //                         console.error("routeForType",routeForType)
+    //                         console.error("construireCheminString(path)",construireCheminString(path))
 
-                const path = typeCache.get(type);
-                if (path && path.length > 0) {
-                    const lastSegment = path[path.length - 1];
-                    const routeForType = getListTube().find(tube =>
-                        (tube.buildingId1 === module.buildingId && tube.buildingId2 === lastSegment.buildingId2) ||
-                        (tube.buildingId2 === module.buildingId && tube.buildingId1 === lastSegment.buildingId2)
-                    );
-
-                    if (routeForType) {
-                        // console.error("routeForType", routeForType);
-                        // console.error("construireCheminString(path)", construireCheminString(path));
-
-                        const podTowardsLunarModule = embarquerAstronautesDansPod(
-                            module.buildingId,
-                            newBuildingsMap.get(lastSegment.buildingId2)?.buildingId!
-                        );
-
-                        const stopsTemp = path.flatMap(segment => [segment.buildingId1, segment.buildingId2]);
-
-                        const pod: Pod = {
-                            podId: idPod + 1,
-                            numStops: stopsTemp.length,
-                            stops: stopsTemp,
-                            astronauts: podTowardsLunarModule
-                        };
-
-                        
-
-                        // Utilisation de `some` pour vérifier rapidement l'existence du pod
-                        const isExist = pods.some(existingPod => JSON.stringify(existingPod.stops) === JSON.stringify(pod.stops));
-
-                        if (!isExist && hasSufficientResources(POD_RESSOURCE)) {
-                            idPod++;
-                            pods.push(pod);
-                            actions.push({
-                                type: typeAction.POD,
-                                details: `${idPod} ${construireCheminString(path)}`
-                            });
-                            resources.totalResources! -= POD_RESSOURCE;
-                        }
-                    }
-                }
-            }
-        });
-    });
+    //                         let isExist = false;
+    //                         const podTowardsLunarModule = embarquerAstronautesDansPod(module.buildingId, newBuildingsMap.get(path[path.length-1].buildingId2)?.buildingId!);
+    //                         const stopsTemp: number[] = []
+    //                         path.forEach(a => {
+    //                             stopsTemp.push(a.buildingId1, a.buildingId2)
+    //                         })
+    //                         let pod: Pod = {
+    //                             podId: pods.length > 0 ? pods[pods.length - 1].podId + 1 : 0,
+    //                             numStops: 2,
+    //                             stops: stopsTemp,
+    //                             astronauts: podTowardsLunarModule
+    //                         };
+    //                         for (let podVar of pods) {
+    //                             if (podVar === pod) {
+    //                                 isExist = true;
+    //                                 break;  // Arrêter la boucle dès qu'un pod est trouvé
+    //                             }
+    //                         }
+    //                         if (!isExist && hasSufficientResources(POD_RESSOURCE)) {
+    //                             idPod++;
+    //                             pods.push(pod);
+    //                             actions.push({
+    //                                 type: typeAction.POD,
+    //                                 details: `${idPod} ${construireCheminString(path)}`
+    //                             });
+    //                             resources.totalResources! -= POD_RESSOURCE;
+    //                         }
+    //                     }
+    //                 }
+    //         }
+    //     })
+    // })
 }
 
 function trouverModuleLunaireProcheByTypes(buildingId: number, type: number): Transport[] | undefined {
@@ -1208,12 +1229,13 @@ while (numberOfMonth !== 20) {
     console.error('transportRoutes 1', transportRoutes)
     
     // gestion des tubes et des teleporter
-    gestionArrivee();
+    gestionTubeTeleporter();
 
-    gestionResteAstronautesOnLunarModule()
+    gestionPodsAndCapacity()
 
     gestionTraficEtUpgrade();
-    // deplacerPods();
+
+    deplacerPods();
 
     
     numberOfDays++;
@@ -1224,9 +1246,3 @@ while (numberOfMonth !== 20) {
     console.error('resources', resources.totalResources)
     sortirActions();
 }
-
-
-function readline(): string {
-    throw new Error("Function not implemented.");
-}
-
