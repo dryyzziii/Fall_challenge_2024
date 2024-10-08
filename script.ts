@@ -45,6 +45,7 @@ interface ConstructionCost {
 }
 
 interface Teleporter extends TransportRoute {
+    lunarModuleId: number | null;
     // Les téléporteurs n'ont pas de capacité, ils sont instantanés
 }
 
@@ -245,7 +246,11 @@ function upgradeTube(route: MagneticTube) {
             });
             resources.totalResources! -= newCost!;
         }
+        else {
+            route.capacity -=1;
+        }
     }
+    // console.error("updrage transportRoutes", transportRoutes)
     return route
 }
 
@@ -308,7 +313,7 @@ function calculNewCost(m1: MagneticTube, newCapacity: number): number | undefine
  * @param buildingId1 - (Optionnel) L'identifiant du premier bâtiment.
  * @param buildingId2 - (Optionnel) L'identifiant du second bâtiment.
  */
-function addTransportRoute(isDebut: boolean, capacity?: number, buildingId1?: number, buildingId2?: number) {
+function addTransportRoute(isDebut: boolean, capacity?: number, buildingId1?: number, buildingId2?: number, lunarModuleId?: number) {
     if (isDebut) {
         const numTravelRoutes: number = +readline(); // Nombre de routes de transport
         // console.error('numTravelRoutes', numTravelRoutes);
@@ -344,7 +349,7 @@ function addTransportRoute(isDebut: boolean, capacity?: number, buildingId1?: nu
         }
     } else {
         const route = capacity === 0
-            ? { buildingId1, buildingId2 } as Teleporter // Création d'un téléporteur
+            ? { buildingId1, buildingId2, lunarModuleId: lunarModuleId } as Teleporter // Création d'un téléporteur
             : { buildingId1, buildingId2, capacity, pods: [] } as MagneticTube; // Création d'un tube magnétique
 
         transportRoutes.push(route); // Ajout de la nouvelle route
@@ -626,7 +631,6 @@ interface SimulatedAction {
 }
 
 function gestionArrivee(): void {
-    let arretes = kruskalMST();
     let simulatedActions: SimulatedAction[] = [];
     const actionSet = new Set<string>();  // Pour éviter les doublons
 
@@ -642,6 +646,12 @@ function gestionArrivee(): void {
             }
 
             const pathForType = trajetCache.get(type);
+            if(building.buildingId == 3) {
+                console.error("building",building)
+                console.error("arretes.routes",arretes.routes)
+                console.error("pathForType",pathForType)
+            }
+            
             if (pathForType) {
                 let routeForType: Transport[] = [];
 
@@ -670,18 +680,18 @@ function gestionArrivee(): void {
                         idBuildingEnd = b2.buildingId;
                     }
                 });
-
+                // console.error("routeForType",routeForType)
                 
                 let buildingEnd: Building = newBuildingsMap.get(idBuildingEnd!)!;
-                if(building.buildingId == 1) {
-                    // console.error("routeForType",routeForType)
-                    // console.error("idBuildingEnd",idBuildingEnd)
-                }
+                
                 const totalCostForTubes = simulateCostTubeTotal(building, routeForType);
-                if (buildingEnd !== null) {
-                    const teleporterExists = transportRoutes.some(a =>
-                        (a.buildingId1 === building.buildingId && a.buildingId2 === buildingEnd!.buildingId) ||
-                        (a.buildingId1 === buildingEnd!.buildingId && a.buildingId2 === building.buildingId)
+                if (buildingEnd !== null && buildingEnd) {
+                    
+                    const teleporterExists = transportRoutes.some(route =>
+                        route.buildingId1 === building.buildingId || 
+                        route.buildingId2 === building.buildingId || 
+                        route.buildingId1 === buildingEnd!.buildingId || 
+                        route.buildingId2 === buildingEnd!.buildingId
                     );
                    
 
@@ -698,6 +708,9 @@ function gestionArrivee(): void {
                             actionSet.add(`${actionsTemp.type}-${actionsTemp.details}-${actionsTemp.cost}`);
                         }
                     } else {
+                        // if(building.buildingId == 3) {
+                        //     console.error("routeForType",routeForType)
+                        // }
                         routeForType.forEach(route => {
                             const building1 = newBuildingsMap.get(route.buildingId1)!;
                             const building2 = newBuildingsMap.get(route.buildingId2)!;
@@ -736,12 +749,13 @@ function gestionArrivee(): void {
 
                 teleporterList.push(building1);
                 teleporterList.push(building2);
-                addTransportRoute(false, 0, buildingId1, buildingId2);
+                addTransportRoute(false, 0, buildingId1, buildingId2,action.zoneType);
                 transfererAstronautes(building1, building2, action.zoneType);
+                updateArretes();
             } else if (action.type === typeAction.TUBE) {
                 addTubeCost(action.cost, buildingId1, buildingId2);
                 addTransportRoute(false, 1, buildingId1, buildingId2);
-                transfererAstronautes(building1, building2, action.zoneType);
+                // transfererAstronautes(building1, building2, action.zoneType);
             }
 
             actions.push({
@@ -846,6 +860,24 @@ function construireCheminString(path: Transport[]): string {
     return chemin.join(' ');  // Convertir le tableau en string séparé par des espaces
 }
 
+function updateArretes() {
+    // console.error("transportRoutes", transportRoutes)
+    // console.error("arretes", arretes)
+    arretes.routes.forEach((routeArretes: Transport) => {
+        transportRoutes.forEach((routeTransportRoute: Transport) => {
+            if
+            (
+                (routeArretes.buildingId1 == routeTransportRoute.buildingId1 && routeArretes.buildingId2 == routeTransportRoute.buildingId2) ||
+                (routeArretes.buildingId2 == routeTransportRoute.buildingId1 && routeArretes.buildingId1 == routeTransportRoute.buildingId2) 
+            )
+            {
+                (routeArretes as Teleporter).lunarModuleId = (routeTransportRoute as Teleporter).lunarModuleId
+            }
+        })
+    })
+    // console.error("arretes apres update", arretes)
+}
+
 
 // 1. Capacité des routes
 // 2. Trafic sur la route
@@ -862,122 +894,86 @@ function gestionResteAstronautesOnLunarModule() {
 
     LandingZoneMap.forEach((landingzone: Building) => {
         const typeCache: Map<number, Transport[]> = new Map(); // Cache pour éviter des calculs répétés des chemins par type
-
+        // console.error("landingzone",landingzone)
         landingzone.astronautTypes.forEach((type: number) => {
+            
             if (!typeCache.has(type)) {
-                const path = trouverModuleLunaireProcheByTypes(landingzone.buildingId, type);
+                const path = trouverModuleLunaireProcheByTypesAndRoutes(landingzone.buildingId, type, arretes.routes);
                 if (path !== undefined) {
                     typeCache.set(type, path);  // Stocke le chemin calculé pour éviter les répétitions
                 }
             }
-
+            
             const path = typeCache.get(type);
+            
             if (path && path.length > 0) {
                 let routeForType: MagneticTube[] = [];
 
-                // Filtre les tubes qui correspondent au chemin
-                getListTube().forEach((tube: MagneticTube) => {
-                    if (path.some((transport: Transport) =>
-                        (tube.buildingId1 === transport.buildingId1 && tube.buildingId2 === transport.buildingId2) ||
-                        (tube.buildingId1 === transport.buildingId2 && tube.buildingId2 === transport.buildingId1))) {
-                        routeForType.push(tube);
-                    }
+                transportRoutes.forEach((tube: Transport) => {
+                    path.forEach((transport: Transport) => {
+                        if (
+                            (tube as MagneticTube)?.capacity && 
+                            (tube.buildingId1 === transport.buildingId1 && tube.buildingId2 === transport.buildingId2) ||
+                            (tube.buildingId1 === transport.buildingId2 && tube.buildingId2 === transport.buildingId1)
+                        ) {
+                            routeForType.push(tube as MagneticTube);
+                        }
+                    });
                 });
+
+                // if(landingzone.buildingId == 3){
+                //     console.error("path",path)
+                //     console.error("routeForType",routeForType)
+                // }
+                // console.error("routeForType",routeForType)
 
                 // Si toutes les routes du chemin sont valides
                 if (routeForType.length === path.length) {
-                    const podTowardsLunarModule = embarquerAstronautesDansPod(
-                        landingzone.buildingId,
-                        newBuildingsMap.get(path[path.length - 1].buildingId2)?.buildingId!
-                    );
+                    const destination: Building = newBuildingsMap.get(path[path.length - 1].buildingId2)!
+                    // const podTowardsLunarModule = embarquerAstronautesDansPod(
+                    //     landingzone.buildingId,
+                    //     newBuildingsMap.get(path[path.length - 1].buildingId2)?.buildingId!
+                    // );
 
                     const stopsTemp: number[] = path.flatMap(a => [a.buildingId1, a.buildingId2]);
+                    const astronaut: Astronaut[] = []
+                    landingzone.astronautTypes.forEach((type: number, index: number) => {
+                        const astro: Astronaut = {
+                            astronautId: index,
+                            destination: destination.buildingId,
+                            type: type
+                        }
+                        astronaut.push(astro)
+                    })
 
                     let pod: Pod = {
                         podId: idPod + 1,
                         numStops: stopsTemp.length,
                         stops: stopsTemp,
-                        astronauts: podTowardsLunarModule
+                        astronauts: astronaut
                     };
 
                     // Vérification des doublons de pod et de capacité des routes
                     let isExist = pods.some(p => JSON.stringify(p.stops) === JSON.stringify(pod.stops));
                     let noMoreCapacity = false;
 
-                    routeForType.forEach(route => {
-                        if (route.pods.length >= route.capacity) {
-                            noMoreCapacity = true;
-                            route = upgradeTube(route);  // Augmenter la capacité du tube si nécessaire
-                        }
-                    });
-
-                    // Ajout du pod si les conditions sont remplies
-                    if (!isExist && hasSufficientResources(POD_RESSOURCE) && !noMoreCapacity) {
-                        idPod++;
-                        pods.push(pod);
+                    if(isExist) {
                         routeForType.forEach(route => {
-                            route.pods.push(pod);
-                            podsList.push(route);
+                            if (route.pods.length+1 >= route.capacity) {
+                                const test_route = upgradeTube(route);  // Augmenter la capacité du tube si nécessaire
+                                noMoreCapacity = true;
+                            }
                         });
 
-                        actions.push({
-                            type: typeAction.POD,
-                            details: `${idPod} ${construireCheminString(path)}`
-                        });
-                        resources.totalResources! -= POD_RESSOURCE;
-                    }
-                }
-            }
-        });
-    });
-
-    LunarModuleMap.forEach((module: LunarModule) => {
-        const typeCache: Map<number, Transport[]> = new Map(); // Cache pour éviter des calculs répétitifs
-        console.error("module",module)
-        module.astronautTypes.forEach((type: number) => {
-            if (type !== module.moduleType) {
-                // Vérifie si le chemin pour ce type a déjà été calculé
-                if (!typeCache.has(type)) {
-                    const path = trouverModuleLunaireProcheByTypes(module.buildingId, type);
-                    if (path) {
-                        typeCache.set(type, path); // Stocker dans le cache
-                    }
-                }
-
-                const path = typeCache.get(type);
-                if (path && path.length > 0) {
-                    const lastSegment = path[path.length - 1];
-                    const routeForType = getListTube().find(tube =>
-                        (tube.buildingId1 === module.buildingId && tube.buildingId2 === lastSegment.buildingId2) ||
-                        (tube.buildingId2 === module.buildingId && tube.buildingId1 === lastSegment.buildingId2)
-                    );
-
-                    if (routeForType) {
-                        // console.error("routeForType", routeForType);
-                        // console.error("construireCheminString(path)", construireCheminString(path));
-
-                        const podTowardsLunarModule = embarquerAstronautesDansPod(
-                            module.buildingId,
-                            newBuildingsMap.get(lastSegment.buildingId2)?.buildingId!
-                        );
-
-                        const stopsTemp = path.flatMap(segment => [segment.buildingId1, segment.buildingId2]);
-
-                        const pod: Pod = {
-                            podId: idPod + 1,
-                            numStops: stopsTemp.length,
-                            stops: stopsTemp,
-                            astronauts: podTowardsLunarModule
-                        };
-
-                        
-
-                        // Utilisation de `some` pour vérifier rapidement l'existence du pod
-                        const isExist = pods.some(existingPod => JSON.stringify(existingPod.stops) === JSON.stringify(pod.stops));
-
-                        if (!isExist && hasSufficientResources(POD_RESSOURCE)) {
+                        // Ajout du pod si les conditions sont remplies
+                        if (hasSufficientResources(POD_RESSOURCE) && !noMoreCapacity) {
                             idPod++;
                             pods.push(pod);
+                            routeForType.forEach(route => {
+                                route.pods.push(pod);
+                                podsList.push(route);
+                            });
+
                             actions.push({
                                 type: typeAction.POD,
                                 details: `${idPod} ${construireCheminString(path)}`
@@ -985,10 +981,90 @@ function gestionResteAstronautesOnLunarModule() {
                             resources.totalResources! -= POD_RESSOURCE;
                         }
                     }
+                    else {
+    
+                        // Ajout du pod si les conditions sont remplies
+                        if (hasSufficientResources(POD_RESSOURCE)) {
+                            idPod++;
+                            pods.push(pod);
+                            routeForType.forEach(route => {
+                                route.pods.push(pod);
+                                podsList.push(route);
+                            });
+    
+                            actions.push({
+                                type: typeAction.POD,
+                                details: `${idPod} ${construireCheminString(path)}`
+                            });
+                            resources.totalResources! -= POD_RESSOURCE;
+                        }
+                    }
+
+                    
+                    
                 }
             }
         });
     });
+
+    // LunarModuleMap.forEach((module: LunarModule) => {
+    //     const typeCache: Map<number, Transport[]> = new Map(); // Cache pour éviter des calculs répétitifs
+    //     console.error("module",module)
+    //     module.astronautTypes.forEach((type: number) => {
+    //         if (type !== module.moduleType) {
+    //             // Vérifie si le chemin pour ce type a déjà été calculé
+    //             if (!typeCache.has(type)) {
+    //                 const path = trouverModuleLunaireProcheByTypes(module.buildingId, type);
+    //                 if (path) {
+    //                     typeCache.set(type, path); // Stocker dans le cache
+    //                 }
+    //             }
+
+    //             const path = typeCache.get(type);
+    //             if (path && path.length > 0) {
+    //                 const lastSegment = path[path.length - 1];
+    //                 const routeForType = getListTube().find(tube =>
+    //                     (tube.buildingId1 === module.buildingId && tube.buildingId2 === lastSegment.buildingId2) ||
+    //                     (tube.buildingId2 === module.buildingId && tube.buildingId1 === lastSegment.buildingId2)
+    //                 );
+
+    //                 if (routeForType) {
+    //                     // console.error("routeForType", routeForType);
+    //                     // console.error("construireCheminString(path)", construireCheminString(path));
+
+    //                     const podTowardsLunarModule = embarquerAstronautesDansPod(
+    //                         module.buildingId,
+    //                         newBuildingsMap.get(lastSegment.buildingId2)?.buildingId!
+    //                     );
+
+    //                     const stopsTemp = path.flatMap(segment => [segment.buildingId1, segment.buildingId2]);
+
+    //                     const pod: Pod = {
+    //                         podId: idPod + 1,
+    //                         numStops: stopsTemp.length,
+    //                         stops: stopsTemp,
+    //                         astronauts: podTowardsLunarModule
+    //                     };
+
+                        
+
+    //                     // Utilisation de `some` pour vérifier rapidement l'existence du pod
+    //                     const isExist = pods.some(existingPod => JSON.stringify(existingPod.stops) === JSON.stringify(pod.stops));
+
+    //                     if (!isExist && hasSufficientResources(POD_RESSOURCE)) {
+    //                         idPod++;
+    //                         pods.push(pod);
+    //                         actions.push({
+    //                             type: typeAction.POD,
+    //                             details: `${idPod} ${construireCheminString(path)}`
+    //                         });
+    //                         resources.totalResources! -= POD_RESSOURCE;
+    //                     }
+    //                 }
+    //             }
+    //         }
+    //     });
+    // });
 }
 
 function trouverModuleLunaireProcheByTypes(buildingId: number, type: number): Transport[] | undefined {
@@ -1042,7 +1118,8 @@ function dijkstraToLunarModuleWithType(startBuildingId: number, targetModuleType
                 path.push({
                     buildingId1: prevBuildingId,
                     buildingId2: current,
-                    capacity: 1
+                    capacity: 1,
+                    lunarModuleId: null
                 });
                 current = prevBuildingId;
             }
@@ -1067,8 +1144,11 @@ function dijkstraToLunarModuleWithType(startBuildingId: number, targetModuleType
 
     return null;  // Aucun module lunaire du bon type n'a été trouvé
 }
-
-function dijkstraToLunarModuleWithTypeAndRoutes(startBuildingId: number, targetModuleType: number, routes: Transport[]): { path: Transport[], cost: number } | null {
+function dijkstraToLunarModuleWithTypeAndRoutes(
+    startBuildingId: number, 
+    targetModuleType: number, 
+    routes: Transport[]
+): { path: Transport[], cost: number } | null {
     const distances: { [key: number]: number } = {};
     const previous: { [key: number]: number | null } = {};
     const visited: Set<number> = new Set();
@@ -1094,7 +1174,7 @@ function dijkstraToLunarModuleWithTypeAndRoutes(startBuildingId: number, targetM
 
         // Vérifier si le bâtiment courant est un module lunaire du bon type
         const currentBuilding = newBuildingsMap.get(currentBuildingId);
-        if (currentBuilding && (currentBuilding as LunarModule).moduleType === targetModuleType) {
+        if (currentBuilding && (currentBuilding as LunarModule)?.moduleType === targetModuleType) {
             // Reconstituer le chemin depuis startBuildingId jusqu'à ce module lunaire
             const path: Transport[] = [];
             let current = currentBuildingId;
@@ -1103,7 +1183,8 @@ function dijkstraToLunarModuleWithTypeAndRoutes(startBuildingId: number, targetM
                 path.push({
                     buildingId1: prevBuildingId,
                     buildingId2: current,
-                    capacity: 1
+                    capacity: 1,
+                    lunarModuleId: null
                 });
                 current = prevBuildingId;
             }
@@ -1113,21 +1194,48 @@ function dijkstraToLunarModuleWithTypeAndRoutes(startBuildingId: number, targetM
 
         // Explorer les voisins (routes de transport)
         for (const neighbor of routes) {
-            if (neighbor.buildingId1 === currentBuildingId || neighbor.buildingId2 === currentBuildingId) {
-                const neighborBuildingId = neighbor.buildingId1 === currentBuildingId ? neighbor.buildingId2 : neighbor.buildingId1;
-                const newCost = cost + calculDistanceTub(newBuildingsMap.get(currentBuildingId)!, newBuildingsMap.get(neighborBuildingId)!);
+            const isTeleportRoute = 'lunarModuleId' in neighbor;
+            
+            // Si c'est une route téléporteur vers un module lunaire
+            if (isTeleportRoute && neighbor?.lunarModuleId !== undefined) {
+                const lunarModule = newBuildingsMap.get((neighbor as Teleporter).lunarModuleId!) as LunarModule;
 
-                if (newCost < distances[neighborBuildingId]) {
-                    distances[neighborBuildingId] = newCost;
-                    previous[neighborBuildingId] = currentBuildingId;
-                    pq.push({ buildingId: neighborBuildingId, cost: newCost });
+                // Si ce téléporteur mène directement à un module lunaire du bon type
+                if (lunarModule?.moduleType === targetModuleType) {
+                    const path: Transport[] = [];
+                    let current = currentBuildingId;
+                    while (previous[current] !== null) {
+                        const prevBuildingId = previous[current]!;
+                        path.push({
+                            buildingId1: prevBuildingId,
+                            buildingId2: current,
+                            capacity: 1,
+                            lunarModuleId: (neighbor as Teleporter).lunarModuleId!
+                        });
+                        current = prevBuildingId;
+                    }
+
+                    // Ajouter le téléporteur au chemin
+                    path.push(neighbor); // On ajoute le transport (téléporteur)
+                    return { path: path.reverse(), cost: distances[currentBuildingId] };
                 }
+            }
+
+            // Si ce n'est pas un téléporteur, continuer avec Dijkstra classique
+            const neighborBuildingId = neighbor.buildingId1 === currentBuildingId ? neighbor.buildingId2 : neighbor.buildingId1;
+            const newCost = cost + calculDistanceTub(newBuildingsMap.get(currentBuildingId)!, newBuildingsMap.get(neighborBuildingId)!);
+
+            if (newCost < distances[neighborBuildingId]) {
+                distances[neighborBuildingId] = newCost;
+                previous[neighborBuildingId] = currentBuildingId;
+                pq.push({ buildingId: neighborBuildingId, cost: newCost });
             }
         }
     }
 
     return null;  // Aucun module lunaire du bon type n'a été trouvé
 }
+
 
 
 
@@ -1177,9 +1285,14 @@ let LandingZoneMap: Map<number, Building> = new Map();
 
 let numberOfMonth: number = 0;
 let numberOfDays: number = 0;
+let arretes: {
+    routes: Transport[];
+    cost: number;
+}
 //#endregion
 
 while (numberOfMonth !== 20) {
+    
     // Lecture des ressources disponibles
     resources.totalResources = +readline()
     console.error('resources', resources.totalResources)
@@ -1189,7 +1302,6 @@ while (numberOfMonth !== 20) {
     addTransportRoute(true);
     addPods(true);
     addBuildings(true);
-    
 
     // Remplir la map avec les bâtiments existants
     newBuildings.forEach(building => {
@@ -1203,6 +1315,9 @@ while (numberOfMonth !== 20) {
             LandingZoneMap.set(building.buildingId, building)
         }
     })
+    
+    arretes = kruskalMST();
+    updateArretes();
 
     // console.error("newBuildings",newBuildings)
     console.error('transportRoutes 1', transportRoutes)
